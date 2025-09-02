@@ -1,5 +1,8 @@
 streamlit
 pandas
-openpyxl
-matplotlib
 seaborn
+matplotlib
+folium
+streamlit-folium
+
+
