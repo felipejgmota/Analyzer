@@ -3,7 +3,21 @@ import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 
-st.title("Análise e Relatório")
+# Caso queira ativar autenticação futuramente, descomente:
+# import streamlit_authenticator as stauth
+# users = { ... } # Definição de usuários e senha aqui
+# hashed_passwords = stauth.Hasher([...]).generate()
+# credentials = {...}
+# authenticator = stauth.Authenticate(credentials, "cookie_name", "signature_key", cookie_expiry_days=1)
+# name, authentication_status, username = authenticator.login("Login", "main")
+
+# if authentication_status:
+#     st.write(f"Bem-vindo, {name}!")
+# else:
+#     st.warning("Por favor, faça login.")
+#     st.stop()
+
+st.title("Análise e Relatório de Excel - Completo")
 
 uploaded_file = st.file_uploader("Selecione uma planilha Excel...", type=["xlsx"])
 if uploaded_file is not None:
@@ -11,25 +25,50 @@ if uploaded_file is not None:
     st.subheader("Prévia dos Dados")
     st.dataframe(df)
 
-    st.subheader("Opções de Análise")
-    st.write(df.describe())
+    # Filtros dinâmicos
+    st.subheader("Filtros Dinâmicos")
+    df_filtered = df.copy()
 
-    st.subheader("Gráfico de Barras")
-    # Exemplo: gráfico de barras agrupando pela primeira coluna categórica achada e valor da primeira numérica
-    col_cat = st.selectbox("Coluna categórica (exemplo para agrupar):", df.select_dtypes(include='object').columns)
-    col_num = st.selectbox("Coluna numérica (exemplo para valores):", df.select_dtypes(include='number').columns)
+    cat_cols = df.select_dtypes(include='object').columns.tolist()
+    num_cols = df.select_dtypes(include='number').columns.tolist()
 
-    grouped = df.groupby(col_cat)[col_num].sum().reset_index()
-    fig, ax = plt.subplots()
-    sns.barplot(x=col_cat, y=col_num, data=grouped, ax=ax)
-    st.pyplot(fig)
+    for col in cat_cols:
+        options = st.multiselect(f"Filtrar {col}", options=df[col].unique(), default=df[col].unique())
+        df_filtered = df_filtered[df_filtered[col].isin(options)]
 
-    st.subheader("Mapa de Calor")
-    cols = st.multiselect("Selecione colunas numéricas para o mapa de calor:", df.select_dtypes(include='number').columns)
-    if cols and len(cols) > 1:
-        fig, ax = plt.subplots(figsize=(10, 5))
-        sns.heatmap(df[cols].corr(), annot=True, cmap='RdYlGn', ax=ax)
+    for col in num_cols:
+        min_val, max_val = float(df[col].min()), float(df[col].max())
+        selected_range = st.slider(f"Filtrar intervalo {col}", min_val, max_val, (min_val, max_val))
+        df_filtered = df_filtered[(df_filtered[col] >= selected_range[0]) & (df_filtered[col] <= selected_range[1])]
+
+    st.subheader("Dados Filtrados")
+    st.dataframe(df_filtered)
+
+    # Histogramas e boxplots interativos
+    st.subheader("Histogramas e Boxplots")
+    if num_cols:
+        col_hist = st.selectbox("Selecione coluna numérica para histograma e boxplot", num_cols)
+        fig, axs = plt.subplots(1, 2, figsize=(12, 4))
+        sns.histplot(df_filtered[col_hist], kde=True, ax=axs[0])
+        axs[0].set_title(f"Histograma de {col_hist}")
+        sns.boxplot(x=df_filtered[col_hist], ax=axs[1])
+        axs[1].set_title(f"Boxplot de {col_hist}")
         st.pyplot(fig)
     else:
-        st.info("Selecione ao menos duas colunas numéricas para o mapa de calor.")
+        st.info("Sem colunas numéricas para gráficos.")
+
+    # Agrupamento e resumo estatístico
+    st.subheader("Agrupamento e Resumo Estatístico")
+    if cat_cols and num_cols:
+        group_col = st.selectbox("Selecione coluna categórica para agrupar", cat_cols)
+        num_col_group = st.selectbox("Selecione coluna numérica para resumir", num_cols)
+        grouped = df_filtered.groupby(group_col)[num_col_group].agg(['count', 'sum', 'mean', 'median', 'std']).reset_index()
+        st.dataframe(grouped)
+    else:
+        st.info("Sem colunas categóricas ou numéricas para agrupamento.")
+
+    # Caso tenha autenticacao, adicionar botão de logout:
+    # authenticator.logout("Logout", "sidebar")
+
+
 
