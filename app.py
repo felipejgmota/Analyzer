@@ -2,9 +2,6 @@ import streamlit as st
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
-import numpy as np
-
-# Importa folium para mapa
 import folium
 from streamlit_folium import st_folium
 
@@ -14,10 +11,11 @@ st.set_page_config(layout="wide", page_title="Análise Completa com KPIs, Filtro
 st.title("Dashboard de Análise Operacional Completo")
 
 uploaded_file = st.file_uploader("Selecione uma planilha Excel...", type=["xlsx"])
+
 if uploaded_file is not None:
     df = pd.read_excel(uploaded_file)
 
-    # Tentar converter colunas de data se existirem
+    # Converter colunas com datas, se existirem
     for col in df.columns:
         if 'date' in col.lower() or 'data' in col.lower() or 'hora' in col.lower():
             try:
@@ -28,17 +26,16 @@ if uploaded_file is not None:
     st.subheader("Prévia dos Dados")
     st.dataframe(df)
 
-    # Identificação básica de colunas por tipo
+    # Identificação dos tipos de colunas
     cat_cols = df.select_dtypes(include='object').columns.tolist()
     num_cols = df.select_dtypes(include='number').columns.tolist()
     date_cols = df.select_dtypes(include='datetime').columns.tolist()
 
-    # --- FILTROS DINÂMICOS, INCLUINDO TEMPORAIS ---
+    # Filtros e filtros temporais
     st.sidebar.header("Filtros")
-
     df_filtered = df.copy()
 
-    # Filtro temporal se houver colunas de data
+    # Filtro temporal
     if date_cols:
         date_col = st.sidebar.selectbox("Coluna de data para filtro temporal", date_cols)
         min_date = df[date_col].min()
@@ -46,39 +43,39 @@ if uploaded_file is not None:
         selected_date_range = st.sidebar.date_input("Período", [min_date, max_date])
         if len(selected_date_range) == 2:
             start_date, end_date = selected_date_range
-            df_filtered = df_filtered[(df_filtered[date_col] >= pd.to_datetime(start_date)) & 
-                                      (df_filtered[date_col] <= pd.to_datetime(end_date))]
+            df_filtered = df_filtered[(df_filtered[date_col] >= pd.to_datetime(start_date)) & (df_filtered[date_col] <= pd.to_datetime(end_date))]
 
-    # Outros filtros categóricos e numéricos no sidebar
+    # Filtros categóricos
     for col in cat_cols:
         options = st.sidebar.multiselect(f"Filtrar {col}", options=df[col].unique(), default=df[col].unique())
         df_filtered = df_filtered[df_filtered[col].isin(options)]
 
+    # Filtros numéricos
     for col in num_cols:
         min_val, max_val = float(df[col].min()), float(df[col].max())
         selected_range = st.sidebar.slider(f"Filtrar intervalo {col}", min_val, max_val, (min_val, max_val))
         df_filtered = df_filtered[(df_filtered[col] >= selected_range[0]) & (df_filtered[col] <= selected_range[1])]
 
+    # Dados filtrados
     st.subheader("Dados após filtros")
     st.dataframe(df_filtered)
 
-    # --- KPIs em cards ---
+    # KPIs
     st.subheader("KPIs Principais")
-
     if len(num_cols) > 0 and not df_filtered.empty:
-        cols_kpi = st.columns(len(num_cols))
+        cols_kpi = st.columns(min(len(num_cols), 5))  # Limitar número de cards para clareza
         for i, col in enumerate(num_cols):
             media = df_filtered[col].mean()
             mediana = df_filtered[col].median()
             soma = df_filtered[col].sum()
-            with cols_kpi[i]:
+            with cols_kpi[i % 5]:
                 st.metric(label=f"{col} - Média", value=f"{media:.2f}")
                 st.metric(label=f"{col} - Mediana", value=f"{mediana:.2f}")
                 st.metric(label=f"{col} - Soma", value=f"{soma:.2f}")
     else:
         st.info("Sem dados numéricos ou dados filtrados vazios para KPIs.")
 
-    # --- Visualizações tradicionais ---
+    # Visualizações
     st.subheader("Histogramas e Boxplots")
     if num_cols:
         col_hist = st.selectbox("Coluna numérica para histograma e boxplot", num_cols)
@@ -91,7 +88,7 @@ if uploaded_file is not None:
     else:
         st.info("Sem colunas numéricas para gráficos.")
 
-    # --- Agrupamento ---
+    # Agrupamento
     st.subheader("Agrupamento e Resumo Estatístico")
     if cat_cols and num_cols:
         group_col = st.selectbox("Coluna categórica para agrupamento", cat_cols)
@@ -101,19 +98,19 @@ if uploaded_file is not None:
     else:
         st.info("Sem colunas adequadas para agrupamento.")
 
-    # --- ALERTAS DE MANUTENÇÃO BASEADOS EM HORIMETRO ---
+    # Alertas de manutenção
     st.subheader("Alertas de Manutenção")
-
-    # Exemplo básico: verificar colunas relacionadas a manutenção e horimetro
-    manut_cols = [col for col in df_filtered.columns if 'manut' in col.lower()]  # Manutenção
+    manut_cols = [col for col in df_filtered.columns if 'manut' in col.lower()]
     horimetro_cols = [col for col in df_filtered.columns if 'horimet' in col.lower()]
 
     if manut_cols and horimetro_cols:
         horimetro_col = horimetro_cols[0]
         manut_col = manut_cols[0]
 
-        # Definir condição exemplo: horimetro acima de 1000 e manutenção pendente
-        alerta_df = df_filtered[(df_filtered[horimetro_col] >= 1000) & (df_filtered[manut_col].str.lower().isin(['sim', 'pendente', 'agendar']))]
+        alerta_df = df_filtered[
+            (df_filtered[horimetro_col] >= 1000) &
+            (df_filtered[manut_col].str.lower().isin(['sim', 'pendente', 'agendar']))
+        ]
 
         if not alerta_df.empty:
             st.warning(f"Existem {len(alerta_df)} equipamentos com alerta de manutenção (Horímetro >= 1000 e manutenção pendente).")
@@ -121,12 +118,10 @@ if uploaded_file is not None:
         else:
             st.success("Nenhum alerta de manutenção pendente encontrado.")
     else:
-        st.info("Colunas para alertas de manutenção ou horímetro não encontradas.")
+        st.info("Colunas para alertas de manutenção ou horímetro não encontradas no dataset.")
 
-    # --- MAPA INTERATIVO PARA DADOS GEOGRÁFICOS (SE TIVER) ---
+    # Mapa interativo
     st.subheader("Mapa Interativo")
-
-    # Tenta identificar colunas geográficas comuns
     lat_candidates = [col for col in df.columns if 'lat' in col.lower()]
     lon_candidates = [col for col in df.columns if 'lon' in col.lower() or 'long' in col.lower()]
 
@@ -151,3 +146,5 @@ if uploaded_file is not None:
     else:
         st.info("Colunas geográficas (latitude/longitude) não encontradas no dataset.")
 
+else:
+    st.info("Por favor, faça o upload de uma planilha Excel para análise.")
