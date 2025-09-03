@@ -5,6 +5,9 @@ matplotlib
 folium
 streamlit-folium
 plotly
+xlsxwriter
+
+
 
 
 
