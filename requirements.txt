@@ -6,8 +6,4 @@ folium
 streamlit-folium
 plotly
 xlsxwriter
-
-
-
-
-
+reportlab
