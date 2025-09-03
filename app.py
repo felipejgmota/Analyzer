@@ -7,7 +7,7 @@ from streamlit_folium import st_folium
 # Configuração da página
 st.set_page_config(layout="wide", page_title="Análise Completa com KPIs, Filtros e Mapas Interativos")
 
-st.title("Dashboard de Análise Operacional Completo")
+st.title("Dashboard de Análise Operacional")
 
 # Cache para leitura do Excel com todas as sheets
 @st.cache_data(show_spinner=True)
@@ -52,7 +52,7 @@ if uploaded_file is not None:
     all_sheets = load_excel(uploaded_file)
     sheet_names = list(all_sheets.keys())
 
-    sheet_selected = st.selectbox("Selecione a aba para análise", sheet_names)
+    sheet_selected = st.selectbox("Selecione a aba da planilha para análise", sheet_names)
     df = preprocess_df(all_sheets[sheet_selected])
 
     st.subheader(f"Visualização da aba: {sheet_selected}")
@@ -187,3 +187,4 @@ if uploaded_file is not None:
 
 else:
     st.info("Por favor, faça o upload de uma planilha Excel para análise.")
+
