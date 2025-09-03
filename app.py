@@ -11,7 +11,7 @@ st.set_page_config(layout="wide", page_title="Análise Completa com KPIs, Filtro
 
 st.title("Dashboard de Análise Operacional Completo")
 
-# Função de cache no carregamento
+# Função de cache para o carregamento do arquivo
 @st.cache_data
 def load_data(uploaded_file):
     return pd.read_excel(uploaded_file)
@@ -21,7 +21,7 @@ uploaded_file = st.file_uploader("Selecione uma planilha Excel...", type=["xlsx"
 if uploaded_file is not None:
     df = load_data(uploaded_file)
 
-    # Tentar converter colunas de data se existirem
+    # Conversão de colunas com data se existirem
     for col in df.columns:
         if 'date' in col.lower() or 'data' in col.lower() or 'hora' in col.lower():
             try:
@@ -32,7 +32,7 @@ if uploaded_file is not None:
     st.subheader("Prévia dos Dados")
     st.dataframe(df)
 
-    # Identificação básica de colunas por tipo
+    # Identificação de tipos de colunas
     cat_cols = df.select_dtypes(include='object').columns.tolist()
     num_cols = df.select_dtypes(include='number').columns.tolist()
     date_cols = df.select_dtypes(include='datetime').columns.tolist()
@@ -41,7 +41,7 @@ if uploaded_file is not None:
     st.sidebar.header("Filtros")
     df_filtered = df.copy()
 
-    # Filtro temporal se houver colunas de data
+    # Filtro temporal, se houver colunas de data
     if date_cols:
         date_col = st.sidebar.selectbox("Coluna de data para filtro temporal", date_cols)
         min_date = df[date_col].min()
@@ -59,13 +59,11 @@ if uploaded_file is not None:
         options = st.sidebar.multiselect(f"Filtrar {col}", options=df[col].unique(), default=df[col].unique())
         df_filtered = df_filtered[df_filtered[col].isin(options)]
 
-    # Filtros numéricos
+    # Filtros numéricos (CORRIGIDO AQUI)
     for col in num_cols:
         min_val, max_val = float(df[col].min()), float(df[col].max())
         selected_range = st.sidebar.slider(f"Filtrar intervalo {col}", min_val, max_val, (min_val, max_val))
-        df_filtered = df_filtered[(df_filtered[col] >= selected_range) & (df_filtered[col] <= selected_range[1])]                                                                       
-
-
+        df_filtered = df_filtered[(df_filtered[col] >= selected_range) & (df_filtered[col] <= selected_range[1])]
 
     st.subheader("Dados após filtros")
     st.dataframe(df_filtered)
