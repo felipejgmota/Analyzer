@@ -59,18 +59,15 @@ if uploaded_file is not None:
         options = st.sidebar.multiselect(f"Filtrar {col}", options=df[col].unique(), default=df[col].unique())
         df_filtered = df_filtered[df_filtered[col].isin(options)]
 
-    # Filtros numéricos (CORRIGIDO AQUI)
+    # Filtros numéricos (CORRETO: usar selected_range[0] e selected_range[1])
     for col in num_cols:
         min_val, max_val = float(df[col].min()), float(df[col].max())
         selected_range = st.sidebar.slider(
-            f"Filtrar intervalo {col}", min_val, max_val,
-            (min_val, max_val)
+            f"Filtrar intervalo {col}", min_val, max_val, (min_val, max_val)
         )
         df_filtered = df_filtered[
-            (df_filtered[col] >= selected_range[0]) &
-            (df_filtered[col] <= selected_range[1])
+            (df_filtered[col] >= selected_range[0]) & (df_filtered[col] <= selected_range[1])
         ]
-
 
     st.subheader("Dados após filtros")
     st.dataframe(df_filtered)
@@ -78,7 +75,7 @@ if uploaded_file is not None:
     # Botão para baixar dados filtrados
     st.download_button(
         "Baixar dados filtrados",
-        df_filtered.to_csv(index=False).encode('utf-8'),
+        df_filtered.to_csv(index=False).encode("utf-8"),
         "dados_filtrados.csv",
         "text/csv"
     )
@@ -105,8 +102,8 @@ if uploaded_file is not None:
     if num_cols:
         col_hist = st.selectbox("Coluna numérica para histograma e boxplot", num_cols)
         fig, axs = plt.subplots(1, 2, figsize=(14, 5))
-        sns.histplot(df_filtered[col_hist], kde=True, ax=axs)
-        axs.set_title(f"Histograma de {col_hist}")
+        sns.histplot(df_filtered[col_hist], kde=True, ax=axs[0])
+        axs[0].set_title(f"Histograma de {col_hist}")
         sns.boxplot(x=df_filtered[col_hist], ax=axs[1])
         axs[1].set_title(f"Boxplot de {col_hist}")
         st.pyplot(fig)
@@ -127,7 +124,6 @@ if uploaded_file is not None:
     # --- ALERTAS DE MANUTENÇÃO BASEADOS EM HORIMETRO ---
     st.subheader("Alertas de Manutenção")
     st.markdown("Alerta equipamentos com horímetro acima de um valor definido e status de manutenção pendente ou agendado.")
-
     manut_cols = [col for col in df_filtered.columns if 'manut' in col.lower()]
     horimetro_cols = [col for col in df_filtered.columns if 'horimet' in col.lower()]
 
@@ -162,16 +158,18 @@ if uploaded_file is not None:
     else:
         st.info("Colunas para alertas de manutenção ou horímetro não encontradas no dataset.")
 
-
     # --- MAPA INTERATIVO PARA DADOS GEOGRÁFICOS (SE TIVER) ---
     st.subheader("Mapa Interativo")
-    st.markdown("Visualize geograficamente os registros presentes na planilha. O mapa interativo exibe a posição dos equipamentos, se latitude e longitude estiverem presentes.")
+    st.markdown(
+        "Visualize geograficamente os registros presentes na planilha. "
+        "O mapa interativo exibe a posição dos equipamentos, se latitude e longitude estiverem presentes."
+    )
     lat_candidates = [col for col in df.columns if 'lat' in col.lower()]
     lon_candidates = [col for col in df.columns if 'lon' in col.lower() or 'long' in col.lower()]
 
     if lat_candidates and lon_candidates:
-        lat_col = lat_candidates
-        lon_col = lon_candidates
+        lat_col = lat_candidates[0]
+        lon_col = lon_candidates[0]
         map_data = df_filtered[[lat_col, lon_col]].dropna()
 
         if not map_data.empty:
