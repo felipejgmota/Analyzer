@@ -62,8 +62,15 @@ if uploaded_file is not None:
     # Filtros numéricos (CORRIGIDO AQUI)
     for col in num_cols:
         min_val, max_val = float(df[col].min()), float(df[col].max())
-        selected_range = st.sidebar.slider(f"Filtrar intervalo {col}", min_val, max_val, (min_val, max_val))
-        df_filtered = df_filtered[(df_filtered[col] >= selected_range) & (df_filtered[col] <= selected_range[1])]
+        selected_range = st.sidebar.slider(
+            f"Filtrar intervalo {col}", min_val, max_val,
+            (min_val, max_val)
+        )
+        df_filtered = df_filtered[
+            (df_filtered[col] >= selected_range[0]) &
+            (df_filtered[col] <= selected_range[1])
+        ]
+
 
     st.subheader("Dados após filtros")
     st.dataframe(df_filtered)
