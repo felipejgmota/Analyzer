@@ -6,9 +6,9 @@ from streamlit_folium import st_folium
 import io
 
 # PAGE CONFIG
-st.set_page_config(layout="wide", page_title="Dashboard Operacional Avançado", initial_sidebar_state="expanded")
+st.set_page_config(layout="wide", page_title="Dashboard Operacional", initial_sidebar_state="expanded")
 
-st.title("📊 Dashboard de Análise Operacional Avançado")
+st.title("📊 Dashboard de Análise Operacional")
 
 # ================ Utils and Data Loading ================
 @st.cache_data(show_spinner=True)
@@ -123,38 +123,74 @@ if uploaded_file is not None:
         "🌟 KPIs", "📈 Gráficos", "📑 Dados", "🛠️ Manutenção", "🗺️ Mapa", "📤 Exportar/Compartilhar"
     ])
 
-    # ========== KPIs e Simulação de Meta ==========
-    with tab_kpi:
-        st.markdown("### KPIs Customizados com Meta")
-        eficiencia_col = next((col for col in df_filtered.columns if "efici" in col.lower()), None)
-        area_col = next((col for col in df_filtered.columns if "área" in col.lower()), None)
-        velocidade_col = next((col for col in df_filtered.columns if "veloc" in col.lower()), None)
-        consumo_col = next((col for col in df_filtered.columns if "consumo" in col.lower()), None)
+    # ------------------ KPIs em Cards Coloridos -------------------
+    st.markdown("## Principais Indicadores")
 
-        meta_efi = st.number_input("Meta de Eficiência (%)", min_value=0., value=65.)
-        cols = st.columns(4)
-        if eficiencia_col: 
-            with cols[0]:
-                val = df_filtered[eficiencia_col].mean()
-                delta = val-meta_efi
-                st.metric("Eficiência (%)", f"{val:.2f}", f"{delta:+.2f} vs meta")
-        if area_col: 
-            with cols[1]:
-                st.metric("Área Operacional (ha)", f"{df_filtered[area_col].sum():.1f}")
-        if velocidade_col:
-            with cols[2]:
-                st.metric("Velocidade Média (km/h)", f"{df_filtered[velocidade_col].mean():.2f}")
-        if consumo_col:
-            with cols[3]:
-                st.metric("Consumo Médio (l/ha)", f"{df_filtered[consumo_col].mean():.2f}")
+    # Defina os KPIs que quer exibir: (título, valor, cor, ícone, meta opcional)
+    kpis = [
+        {
+            "titulo": "Eficiência de Motor (%)",
+            "valor": df_filtered["Eficiência de Motor (%)"].mean() if "Eficiência de Motor (%)" in df_filtered else None,
+            "cor": "#0074D9", "icone": "⚡", "meta": 65
+        },
+        {
+            "titulo": "Área Operacional (ha)",
+            "valor": df_filtered["Área Operacional (ha)"].sum() if "Área Operacional (ha)" in df_filtered else None,
+            "cor": "#2ECC40", "icone": "🌱", "meta": None
+        },
+        {
+            "titulo": "Consumo Médio (l/ha)",
+            "valor": df_filtered["Consumo Médio (l/ha)"].mean() if "Consumo Médio (l/ha)" in df_filtered else None,
+            "cor": "#B10DC9", "icone": "🛢️", "meta": None
+        },
+        {
+            "titulo": "Rendimento Operacional (ha/h)",
+            "valor": df_filtered["Rendimento Operacional (ha/h)"].mean() if "Rendimento Operacional (ha/h)" in df_filtered else None,
+            "cor": "#FF851B", "icone": "🚜", "meta": None
+        },
+        {
+            "titulo": "Velocidade Média Efetiva (km/h)",
+            "valor": df_filtered["Velocidade Média Efetiva (km/h)"].mean() if "Velocidade Média Efetiva (km/h)" in df_filtered else None,
+            "cor": "#39CCCC", "icone": "🏁", "meta": None
+        },
+    ]
 
-        # Simulação de Cenário
-        st.markdown("#### Simulação: ajuste de velocidade")
-        sim_vel = st.slider("Velocidade simulada (km/h)", min_value=5., max_value=30., value=float(df_filtered[velocidade_col].mean()) if velocidade_col else 15.)
-        if velocidade_col:
-            df_sim = df_filtered.copy()
-            df_sim[velocidade_col] = sim_vel
-            st.write(f"Nova média: {df_sim[velocidade_col].mean():.2f} km/h")
+    # Disponha os cards lado a lado
+    cols = st.columns(len(kpis))
+    for i, kpi in enumerate(kpis):
+        valor = kpi["valor"]
+        meta = kpi["meta"]
+        delta = f"{valor-meta:.2f}" if meta and valor is not None else ""
+        with cols[i]:
+            if valor is not None:
+                st.markdown(
+                    f"""
+                    <div style="
+                        background:{kpi['cor']};
+                        border-radius:12px;
+                        padding:18px 8px 14px 8px;
+                        box-shadow:0 2px 8px #ddd;
+                        text-align:center;
+                    ">
+                        <span style="font-size:36px;">{kpi['icone']}</span><br>
+                        <span style="font-size:17px;font-weight:600">{kpi['titulo']}</span><br>
+                        <span style="font-size:38px;font-weight:bold;line-height:1.2">{valor:.2f}</span>
+                        {f"<br><span style='font-size:15px;'>Meta: {meta:.2f}</span>" if meta else ""}
+                        {f"<br><span style='font-size:14px;color:#FFF;font-weight:400'>Δ {delta}</span>" if meta else ""}
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
+            else:
+                st.markdown(
+                    f"""<div style="
+                            background:#DDDDDD;
+                            border-radius:12px;
+                            padding:18px 8px 14px 8px;
+                            text-align:center;">Dado não encontrado</div>""",
+                    unsafe_allow_html=True
+                )
+
 
     # ========== Gráficos Profissionais ==========
     with tab_charts:
