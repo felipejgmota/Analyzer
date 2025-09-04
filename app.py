@@ -177,6 +177,7 @@ if uploaded_file is not None:
             valor = kpi["valor"]
             meta = kpi["meta"]
             delta = f"{valor-meta:.2f}" if meta and valor is not None else ""
+            valor_formatado = f"{valor:.2f}" if isinstance(valor, float) else str(valor)
             with cols[i]:
                 if valor is not None:
                     st.markdown(
@@ -190,7 +191,7 @@ if uploaded_file is not None:
                         ">
                             <span style="font-size:36px;">{kpi['icone']}</span><br>
                             <span style="font-size:17px;font-weight:600">{kpi['titulo']}</span><br>
-                            <span style="font-size:30px;font-weight:bold;line-height:1.2">{valor:.2f if isinstance(valor, float) else valor}</span>
+                            <span style="font-size:30px;font-weight:bold;line-height:1.2">{valor_formatado}</span>
                             {f"<br><span style='font-size:15px;'>Meta: {meta:.2f}</span>" if meta else ""}
                             {f"<br><span style='font-size:14px;color:#FFF;font-weight:400'>Δ {delta}</span>" if meta else ""}
                         </div>
@@ -206,6 +207,7 @@ if uploaded_file is not None:
                                 text-align:center;">Dado não encontrado</div>""",
                         unsafe_allow_html=True
                     )
+
 
     # --------------- Gráficos (corrigido area_col e op_col) ----------------------
     with tab_charts:
