@@ -28,10 +28,13 @@ def preprocess_df(df):
 @st.cache_data
 def apply_filters(df, cat_filters, num_filters, date_col=None, date_range=None):
     df_filtered = df.copy()
-    if date_col and date_range:
+    if date_col and date_range and len(date_range) == 2:
+        start, end = date_range
+        # Ensure end date includes the whole day
+        end = pd.to_datetime(end) + pd.Timedelta(days=1) - pd.Timedelta(seconds=1)
         df_filtered = df_filtered[
-            (df_filtered[date_col] >= pd.to_datetime(date_range[0]))
-            & (df_filtered[date_col] <= pd.to_datetime(date_range[1]))
+            (df_filtered[date_col] >= pd.to_datetime(start)) &
+            (df_filtered[date_col] <= end)
         ]
     for col, values in cat_filters.items():
         if values:
@@ -41,7 +44,6 @@ def apply_filters(df, cat_filters, num_filters, date_col=None, date_range=None):
     return df_filtered
 
 def export_pdf(df, title="Relatório Operacional"):
-    # Exporta DataFrame para PDF simples usando reportlab
     from reportlab.lib.pagesizes import letter, landscape
     from reportlab.pdfgen import canvas
     buf = io.BytesIO()
@@ -66,20 +68,11 @@ def export_pdf(df, title="Relatório Operacional"):
     buf.seek(0)
     return buf
 
+
 uploaded_file = st.file_uploader("Selecione uma planilha Excel...", type=["xlsx"])
 
-# =============== PREFERÊNCIAS E HISTÓRICO (Simples) ================
-st.sidebar.subheader("Minhas Visões Favoritas")
-if 'favoritos' not in st.session_state:
-    st.session_state['favoritos'] = []
-favorito = st.sidebar.text_input("Salvar filtros atuais como nome...")
-if st.sidebar.button("Salvar visão favorita"):
-    st.session_state['favoritos'].append(favorito)
-if st.session_state['favoritos']:
-    st.sidebar.write("Favoritos Salvos:")
-    st.sidebar.write(st.session_state['favoritos'])
+# Removed 'Visão favorita' section per request (Do not add favorite system)
 
-# ================ UPLOAD e PLANILHA ================
 if uploaded_file is not None:
     all_sheets = load_excel(uploaded_file)
     sheet_names = list(all_sheets.keys())
@@ -91,29 +84,59 @@ if uploaded_file is not None:
 
     # ====== Filtros Sidebar ======
     st.sidebar.header("Filtros Dinâmicos")
+
     date_col, date_range = None, None
     if date_cols:
+        # date input with day-month-year format by using format argument
         date_col = st.sidebar.selectbox("Coluna de data para filtro", date_cols)
-        min_date, max_date = df[date_col].min(), df[date_col].max()
-        date_range = st.sidebar.date_input("Selecione o intervalo de datas", [min_date, max_date])
-    cat_filters, num_filters, indicadores_custom = {}, {}, {}
+        min_date, max_date = df[date_col].min().date(), df[date_col].max().date()
+        # Display dates in day-month-year format
+        date_range = st.sidebar.date_input(
+            "Selecione o intervalo de datas",
+            [min_date, max_date],
+            key="date_filter",
+            format="DD-MM-YYYY"
+        )
+        # Ensure the input is a range (list of 2)
+        if len(date_range) != 2:
+            st.sidebar.warning("Selecione um intervalo de duas datas válidas.")
+
+    cat_filters = {}
     for col in cat_cols:
-        options = st.sidebar.multiselect(f"Filtrar {col}", options=df[col].dropna().unique(), default=df[col].dropna().unique())
+        options = st.sidebar.multiselect(
+            f"Filtrar {col}",
+            options=sorted(df[col].dropna().unique()),
+            default=sorted(df[col].dropna().unique()),
+            key=f"catfilter_{col}"
+        )
         cat_filters[col] = options
+
+    num_filters = {}
     for col in num_cols:
         min_val, max_val = float(df[col].min()), float(df[col].max())
-        selected_range = st.sidebar.slider(f"Intervalo {col}", min_val, max_val, (min_val, max_val))
+        step = max((max_val-min_val)/1000, 0.01)  # reasonable step size or at least 0.01
+        selected_range = st.sidebar.slider(
+            f"Intervalo {col}",
+            min_val,
+            max_val,
+            (min_val, max_val),
+            step=step,
+            key=f"numfilter_{col}"
+        )
         num_filters[col] = selected_range
-    # Indicadores customizados do usuário
+
+    # Indicadores customizados do usuário - mantendo funcionalidade
     st.sidebar.subheader("Indicador Customizado")
     exp = st.sidebar.text_input("Digite expressão (ex: `df['A']/df['B']`)")
     if exp and st.sidebar.button("Adicionar indicador"):
         try:
             df["Custom"] = eval(exp)
-            num_cols.append("Custom")
+            if "Custom" not in num_cols:
+                num_cols.append("Custom")
             st.success("Indicador adicionado!")
         except Exception as e:
-            st.error(f"Erro: {e}")
+            st.error(f"Erro na expressão: {e}")
+
     df_filtered = apply_filters(df, cat_filters, num_filters, date_col, date_range)
 
     # ========== Tabs do Dashboard ==========
@@ -124,6 +147,7 @@ if uploaded_file is not None:
     # ===================== KPIs EM CARDS APENAS NA ABA KPIS =======================
     with tab_kpi:
         st.markdown("## Principais Indicadores")
+        # Full set of agronomic and operational KPIs with formatting similar to PDF cards
         kpis = [
             {
                 "titulo": "Eficiência de Motor (%)",
@@ -150,7 +174,6 @@ if uploaded_file is not None:
                 "valor": df_filtered["Velocidade Média Efetiva (km/h)"].mean() if "Velocidade Média Efetiva (km/h)" in df_filtered else None,
                 "cor": "#39CCCC", "icone": "🏁", "meta": None
             },
-            # ---------------------------------- Novos cards analíticos
             {
                 "titulo": "Tempo Efetivo Médio (h)",
                 "valor": df_filtered["Tempo Efetivo (h)"].mean() if "Tempo Efetivo (h)" in df_filtered else None,
@@ -172,57 +195,184 @@ if uploaded_file is not None:
                 "cor": "#3D9970", "icone": "🧰", "meta": None
             },
         ]
-        cols = st.columns(len(kpis))
+
+        # Dropdown para seleção dinâmica de KPIs para exibição adicional
+        kpi_options = {
+            "Número de Talhões": ("Talhão", lambda d: d["Talhão"].nunique() if "Talhão" in d else None),
+            "Consumo Médio Efetivo (l/h)": ("Consumo Médio Efetivo (l/h)", lambda d: d["Consumo Médio Efetivo (l/h)"].mean() if "Consumo Médio Efetivo (l/h)" in d else None),
+            "Velocidade Média (km/h)": ("Velocidade Média Efetiva (km/h)", lambda d: d["Velocidade Média Efetiva (km/h)"].mean() if "Velocidade Média Efetiva (km/h)" in d else None),
+            "RPM Médio": ("RPM Médio em Efetivo", lambda d: d["RPM Médio em Efetivo"].mean() if "RPM Médio em Efetivo" in d else None)
+        }
+
+        selected_extra_kpis = st.multiselect("Selecione KPIs adicionais para exibir", options=list(kpi_options.keys()))
+
+        for kpi_name in selected_extra_kpis:
+            title, func = kpi_options[kpi_name]
+            val = func(df_filtered)
+            kpis.append({
+                "titulo": kpi_name,
+                "valor": val,
+                "cor": "#FF69B4",
+                "icone": "📊",
+                "meta": None
+            })
+
+        cols = st.columns(min(len(kpis), 4), gap="large")  # max 4 cards per row, for nice layout
         for i, kpi in enumerate(kpis):
             valor = kpi["valor"]
             meta = kpi["meta"]
             delta = f"{valor-meta:.2f}" if meta and valor is not None else ""
-            valor_formatado = f"{valor:.2f}" if isinstance(valor, float) else str(valor)
-            with cols[i]:
-                if valor is not None:
-                    st.markdown(
-                        f"""
-                        <div style="
-                            background:{kpi['cor']};
-                            border-radius:12px;
-                            padding:18px 8px 14px 8px;
-                            box-shadow:0 2px 8px #ddd;
-                            text-align:center;
-                        ">
-                            <span style="font-size:36px;">{kpi['icone']}</span><br>
-                            <span style="font-size:17px;font-weight:600">{kpi['titulo']}</span><br>
-                            <span style="font-size:30px;font-weight:bold;line-height:1.2">{valor_formatado}</span>
-                            {f"<br><span style='font-size:15px;'>Meta: {meta:.2f}</span>" if meta else ""}
-                            {f"<br><span style='font-size:14px;color:#FFF;font-weight:400'>Δ {delta}</span>" if meta else ""}
-                        </div>
-                        """,
-                        unsafe_allow_html=True
-                    )
-                else:
-                    st.markdown(
-                        f"""<div style="
-                                background:#DDDDDD;
-                                border-radius:12px;
-                                padding:18px 8px 14px 8px;
-                                text-align:center;">Dado não encontrado</div>""",
-                        unsafe_allow_html=True
-                    )
+            valor_formatado = f"{valor:.2f}" if isinstance(valor, float) else str(valor) if valor is not None else "N/A"
+            with cols[i % 4]:
+                st.markdown(
+                    f"""
+                    <div style="
+                        background:{kpi['cor']};
+                        border-radius:12px;
+                        padding:24px 12px;
+                        box-shadow:0 3px 12px #ccc;
+                        text-align:center;
+                    ">
+                        <div style="font-size:40px;line-height:1">{kpi['icone']}</div>
+                        <div style="font-size:19px;font-weight:700;margin-top:6px">{kpi['titulo']}</div>
+                        <div style="font-size:44px;font-weight:900;margin:6px 0 2px 0">{valor_formatado}</div>
+                        {f"<div style='font-size:16px;font-weight:500;color:#eee'>Meta: {meta:.2f}</div>" if meta else ""}
+                        {f"<div style='font-size:14px;color:#444;font-weight:600'>Δ {delta}</div>" if meta else ""}
+                    </div>
+                    """, unsafe_allow_html=True)
 
-
-    # --------------- Gráficos (corrigido area_col e op_col) ----------------------
+    # ===================== Aba Gráficos =======================
     with tab_charts:
-        area_col = next((col for col in df_filtered.columns if "área operacional" in col.lower()), None)
-        op_col = next((col for col in df_filtered.columns if "operador" in col.lower()), None)
-        if area_col and op_col:
-            area_bar = df_filtered.groupby(op_col)[area_col].sum().reset_index()
-            fig = px.bar(
-                area_bar, x=op_col, y=area_col, color=area_col,
-                color_continuous_scale="Blues", text_auto=True,
-                title="Área Operacional por Operador"
-            )
-            st.plotly_chart(fig, use_container_width=True)
-        # ... adicione outros gráficos normalmente
+        st.markdown("## Análises Gráficas Interativas")
 
-    # ... demais tabs do dashboard seguem como antes
+        # Definir colunas importantes para gráficos
+        op_col = next((col for col in df_filtered.columns if "operador" in col.lower()), None)
+        area_col = next((col for col in df_filtered.columns if "área operacional" in col.lower()), None)
+        ef_col = next((col for col in df_filtered.columns if "eficiência de motor" in col.lower()), None)
+        consumo_col = next((col for col in df_filtered.columns if "consumo médio" in col.lower()), None)
+        rend_col = next((col for col in df_filtered.columns if "rendimento operacional" in col.lower()), None)
+
+        if op_col and area_col:
+            st.subheader("Área Operacional por Operador")
+            area_bar = df_filtered.groupby(op_col)[area_col].sum().reset_index().sort_values(by=area_col, ascending=False)
+            fig1 = px.bar(area_bar, x=op_col, y=area_col, color=area_col, color_continuous_scale="Blues", text_auto=True)
+            st.plotly_chart(fig1, use_container_width=True)
+
+        if ef_col and op_col:
+            st.subheader("Eficiência de Motor (%) por Operador")
+            ef_bar = df_filtered.groupby(op_col)[ef_col].mean().reset_index().sort_values(by=ef_col, ascending=False)
+            fig2 = px.bar(ef_bar, x=op_col, y=ef_col, color=ef_col, color_continuous_scale="Viridis", text_auto=".2f")
+            st.plotly_chart(fig2, use_container_width=True)
+
+        if consumo_col and op_col:
+            st.subheader("Consumo Médio (l/ha) por Operador")
+            cons_bar = df_filtered.groupby(op_col)[consumo_col].mean().reset_index()
+            fig3 = px.box(df_filtered, x=op_col, y=consumo_col, points="all")
+            st.plotly_chart(fig3, use_container_width=True)
+
+        if rend_col and op_col:
+            st.subheader("Rendimento Operacional (ha/h) por Operador")
+            rend_scatter = df_filtered.groupby(op_col)[rend_col].mean().reset_index()
+            fig4 = px.scatter(rend_scatter, x=op_col, y=rend_col, size=rend_col, color=rend_col, color_continuous_scale=px.colors.sequential.Plasma)
+            st.plotly_chart(fig4, use_container_width=True)
+
+        # Histograma dinâmico para colunas numéricas selecioneis
+        if num_cols:
+            numeric_to_plot = st.selectbox("Selecione coluna para Histograma e Boxplot", num_cols, index=0)
+            fig_hist = px.histogram(df_filtered, x=numeric_to_plot, marginal="box", nbins=25, title=f"Distribuição de {numeric_to_plot}")
+            st.plotly_chart(fig_hist, use_container_width=True)
+
+    # ===================== Aba Dados =======================
+    with tab_data:
+        st.markdown("## Dados filtrados")
+        st.dataframe(df_filtered.reset_index(drop=True))
+
+    # ===================== Aba Manutenção =======================
+    with tab_manut:
+        st.markdown("## Análise e alertas de Manutenção")
+        manut_cols = [col for col in df_filtered.columns if 'manut' in col.lower()]
+        horimetro_cols = [col for col in df_filtered.columns if 'horimet' in col.lower()]
+        eq_col = next((c for c in df_filtered.columns if 'equipamento' in c.lower()), None)
+
+        if manut_cols and horimetro_cols:
+            hor_col = horimetro_cols[0]
+            manut_col = manut_cols[0]
+            limite_hor = st.number_input("Horímetro mínimo para alerta", min_value=0, value=1000)
+            status_alerta = st.multiselect("Status de manutenção para alerta", ['sim', 'pendente', 'agendar'], default=['pendente', 'agendar'])
+
+            alerta_df = df_filtered[
+                (df_filtered[hor_col] >= limite_hor) &
+                (df_filtered[manut_col].fillna('').astype(str).str.lower().isin([s.lower() for s in status_alerta]))
+            ]
+            if not alerta_df.empty:
+                st.warning(f"{len(alerta_df)} alertas de manutenção detectados!")
+                st.dataframe(alerta_df.reset_index(drop=True))
+            else:
+                st.success("Nenhum alerta de manutenção pendente encontrado.")
+
+            # Pizza status manutenção
+            manut_status = df_filtered[manut_col].value_counts().reset_index()
+            if not manut_status.empty:
+                fig_pie = px.pie(manut_status, names='index', values=manut_col, 
+                                 title="Distribuição Status de Manutenção", color_discrete_sequence=px.colors.qualitative.Pastel)
+                st.plotly_chart(fig_pie, use_container_width=True)
+        else:
+            st.info("Colunas para alertas de manutenção ou horímetro não encontradas.")
+
+    # ===================== Aba Mapa =======================
+    with tab_geo:
+        st.markdown("## Mapa Interativo")
+        lat_candidates = [col for col in df.columns if 'lat' in col.lower()]
+        lon_candidates = [col for col in df.columns if 'lon' in col.lower() or 'long' in col.lower()]
+        if lat_candidates and lon_candidates:
+            lat_col = lat_candidates[0]
+            lon_col = lon_candidates[0]
+            map_data = df_filtered[[lat_col, lon_col]].dropna()
+            if not map_data.empty:
+                m = folium.Map(location=[map_data[lat_col].mean(), map_data[lon_col].mean()], zoom_start=12, tiles='OpenStreetMap')
+                for _, row in map_data.iterrows():
+                    folium.CircleMarker(
+                        location=[row[lat_col], row[lon_col]],
+                        radius=6,
+                        color='#007AFF',
+                        fill=True,
+                        fill_opacity=0.8
+                    ).add_to(m)
+                st_folium(m, width=950, height=400)
+            else:
+                st.info("Não há dados geográficos disponíveis após filtro.")
+        else:
+            st.info("Colunas de latitude e longitude não encontradas no dataset.")
+
+    # ===================== Aba Exportar =======================
+    with tab_rel:
+        st.markdown("## Exportar/Compartilhar")
+        st.download_button(
+            "Baixar CSV dos dados filtrados",
+            data=df_filtered.to_csv(index=False).encode('utf-8'),
+            file_name="dados_filtrados.csv",
+            mime="text/csv"
+        )
+        excel_buffer = io.BytesIO()
+        with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
+            df_filtered.to_excel(writer)
+        st.download_button(
+            "Baixar Excel dos dados filtrados",
+            data=excel_buffer.getvalue(),
+            file_name="dados_filtrados.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+        # PDF export opcional — só aparece se reportlab instalado
+        try:
+            pdf_data = export_pdf(df_filtered).getvalue()
+            st.download_button(
+                "Baixar PDF dos dados filtrados",
+                data=pdf_data,
+                file_name="dados_filtrados.pdf",
+                mime="application/pdf"
+            )
+        except Exception:
+            st.info("PDF export requer a biblioteca 'reportlab' instalada no ambiente.")
+
 else:
     st.info("Faça o upload de uma planilha Excel para análise.")
