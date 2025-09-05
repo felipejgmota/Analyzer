@@ -140,11 +140,54 @@ if uploaded_file is not None:
     df_filtered = apply_filters(df, cat_filters, num_filters, date_col, date_range)
 
     # ========== Tabs do Dashboard ==========
-    tab_kpi, tab_charts, tab_data, tab_manut, tab_geo, tab_rel = st.tabs([
-        "🌟 KPIs", "📈 Gráficos", "📑 Dados", "🛠️ Manutenção", "🗺️ Mapa", "📤 Exportar/Compartilhar"
-    ])
+# ... (imports, utils, filtros e dados como antes) ...
 
-    # ===================== KPIs EM CARDS APENAS NA ABA KPIS =======================
+tab_kpi, tab_charts, tab_data, tab_manut, tab_geo, tab_sim, tab_rel = st.tabs([
+    "🌟 KPIs", "📈 Gráficos", "📑 Dados", "🛠️ Manutenção", "🗺️ Mapa", "🧮 Simulador", "📤 Exportar"
+])
+
+# ---- DRILL-DOWN -----
+with tab_charts:
+    st.markdown("## Análises Interativas e Drill-Down")
+    op_col = next((col for col in df_filtered.columns if "operador" in col.lower()), None)
+    area_col = next((col for col in df_filtered.columns if "área operacional" in col.lower()), None)
+    if op_col and area_col:
+        base_bar_df = df_filtered.groupby(op_col)[area_col].sum().reset_index()
+        fig = px.bar(base_bar_df, x=op_col, y=area_col, text_auto=True, title="Área Operacional por Operador")
+        click = st.plotly_chart(fig, use_container_width=True)
+        # DRILL-DOWN: selecionar operador para filtrar dashboard
+        operadores = base_bar_df[op_col].tolist()
+        operador_select = st.selectbox("Clique em um operador para detalhar:", operadores)
+        detalhados = df_filtered[df_filtered[op_col] == operador_select]
+        st.markdown(f"### Detalhes do operador: {operador_select}")
+        st.dataframe(detalhados.reset_index(drop=True))
+        # Pode mostrar KPIs e gráficos do operador aqui!
+
+# ---- SIMULADOR E CENÁRIOS -----
+with tab_sim:
+    st.markdown("## Simulador e Cenários 'E se?'")
+    st.info("Altere os parâmetros desejados e observe o impacto nos KPIs abaixo.")
+    # Parâmetros do simulador (ajuste campos conforme suas colunas relevantes)
+    velocidade_sim = st.slider("Velocidade Média Simulada (km/h)", min_value=5., max_value=40., value=15., step=0.1)
+    eficiencia_sim = st.slider("Eficiência de Motor Simulada (%)", min_value=20., max_value=100., value=65., step=0.1)
+    consumo_sim = st.slider("Consumo Médio Simulado (l/ha)", min_value=0.1, max_value=10.0, value=1.5, step=0.1)
+    area_op_sim = st.slider("Área Operacional Simulada (ha)", min_value=50., max_value=2000., value=500., step=10.0)
+
+    # Resultados simulados
+    st.markdown("### Resultados dos Cenários Simulados")
+    simulados = [
+        {"KPI": "Velocidade Média (km/h)", "Valor": velocidade_sim},
+        {"KPI": "Eficiência de Motor (%)", "Valor": eficiencia_sim},
+        {"KPI": "Consumo Médio (l/ha)", "Valor": consumo_sim},
+        {"KPI": "Área Operacional (ha)", "Valor": area_op_sim}
+    ]
+    simulados_df = pd.DataFrame(simulados)
+    st.dataframe(simulados_df)
+    # Impacto hipotético (Exemplo simples)
+    potencial_economia = (df_filtered["Consumo Médio (l/ha)"].mean() - consumo_sim) * area_op_sim if "Consumo Médio (l/ha)" in df_filtered else None
+    if potencial_economia is not None:
+        st.success(f"Potencial economia de insumos: {potencial_economia:.2f} litros por operação simulada.")
+
     with tab_kpi:
         st.markdown("## Principais Indicadores")
         # Full set of agronomic and operational KPIs with formatting similar to PDF cards
@@ -376,3 +419,4 @@ if uploaded_file is not None:
 
 else:
     st.info("Faça o upload de uma planilha Excel para análise.")
+
