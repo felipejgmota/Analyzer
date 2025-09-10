@@ -427,6 +427,7 @@ with tab_sim:
             else:
                 st.info(f"{nome} igual ao da referência real.")
 
+
     if velocidade_real is not None:
         feedback(velocidade_sim, velocidade_sim-velocidade_real, "Velocidade Média", "km/h")
     if eficiencia_real is not None:
@@ -477,4 +478,5 @@ with tab_sim:
 
 else:
     st.info("Faça o upload de uma planilha Excel para análise.")
+
 
