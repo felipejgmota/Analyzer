@@ -336,28 +336,115 @@ if uploaded_file is not None:
             st.info("Colunas de latitude e longitude não encontradas no dataset.")
 
     ######################## Simulador e Cenários ########################
-    with tab_sim:
-        st.markdown("## Simulador e Cenários 'E se?'")
-        st.info("Altere os parâmetros desejados e observe o impacto nos KPIs abaixo.")
-        velocidade_sim = st.slider("Velocidade Média Simulada (km/h)", min_value=5., max_value=40., value=15., step=0.1)
-        eficiencia_sim = st.slider("Eficiência de Motor Simulada (%)", min_value=20., max_value=100., value=65., step=0.1)
-        consumo_sim = st.slider("Consumo Médio Simulado (l/ha)", min_value=0.1, max_value=10.0, value=1.5, step=0.1)
-        area_op_sim = st.slider("Área Operacional Simulada (ha)", min_value=50., max_value=2000., value=500., step=10.0)
+                        # ...código anterior de imports, utils, filtros, dados (mantenha igual)...
 
-        st.markdown("### Resultados dos Cenários Simulados")
-        simulados = [
-            {"KPI": "Velocidade Média (km/h)", "Valor Simulado": velocidade_sim},
-            {"KPI": "Eficiência de Motor (%)", "Valor Simulado": eficiencia_sim},
-            {"KPI": "Consumo Médio (l/ha)", "Valor Simulado": consumo_sim},
-            {"KPI": "Área Operacional (ha)", "Valor Simulado": area_op_sim}
+# INSIRA ESSE TRECHO NA ABA DE SIMULADOR/CENÁRIOS (substitua o bloco 'with tab_sim' anterior):
+
+with tab_sim:
+    st.markdown("## Simulador e Cenários 'E se?'")
+    st.info("Os parâmetros reais abaixo foram calculados automaticamente a partir dos dados filtrados (faixa das últimas operações). Ajuste os sliders e compare.")
+
+    # EXTRAIR PARÂMETROS REAIS DOS DADOS FILTRADOS
+    def get_real(param_col, agg='mean'):
+        if param_col in df_filtered:
+            if agg == 'mean':
+                return float(df_filtered[param_col].mean())
+            elif agg == 'min':
+                return float(df_filtered[param_col].min())
+            elif agg == 'max':
+                return float(df_filtered[param_col].max())
+        return None
+
+    velocidade_real = get_real("Velocidade Média Efetiva (km/h)")
+    eficiencia_real = get_real("Eficiência de Motor (%)")
+    consumo_real = get_real("Consumo Médio (l/ha)")
+    area_real = get_real("Área Operacional (ha)", agg='sum')
+
+    # Definir bounds reais automáticos
+    vel_min, vel_max = get_real("Velocidade Média Efetiva (km/h)", 'min'), get_real("Velocidade Média Efetiva (km/h)", 'max')
+    ef_min, ef_max = get_real("Eficiência de Motor (%)", 'min'), get_real("Eficiência de Motor (%)", 'max')
+    cons_min, cons_max = get_real("Consumo Médio (l/ha)", 'min'), get_real("Consumo Médio (l/ha)", 'max')
+    area_min, area_max = get_real("Área Operacional (ha)", 'min'), get_real("Área Operacional (ha)", 'max')
+
+    # SIMULADOR COM SLIDERS USANDO FAIXA REAL DO BANCO DE DADOS
+    velocidade_sim = st.slider(
+        "Velocidade Média Simulada (km/h)",
+        min_value=float(vel_min or 5),
+        max_value=float(vel_max or 40),
+        value=float(velocidade_real or 15),
+        step=0.1
+    )
+    eficiencia_sim = st.slider(
+        "Eficiência de Motor Simulada (%)",
+        min_value=float(ef_min or 30),
+        max_value=float(ef_max or 100),
+        value=float(eficiencia_real or 65),
+        step=0.1
+    )
+    consumo_sim = st.slider(
+        "Consumo Médio Simulado (l/ha)",
+        min_value=float(cons_min or 0.5),
+        max_value=float(cons_max or 10),
+        value=float(consumo_real or 2.0),
+        step=0.01
+    )
+    area_op_sim = st.slider(
+        "Área Operacional Simulada (ha)",
+        min_value=float(area_min or 100),
+        max_value=float(area_max or 5000),
+        value=float(area_real or 1000),
+        step=10.0
+    )
+
+    # TABELA COMPARATIVA DOS PARÂMETROS REAIS E SIMULADOS
+    st.markdown("### Comparativo: Real vs. Simulado")
+    comparativo = pd.DataFrame({
+        "Parâmetro": ["Velocidade Média (km/h)", "Eficiência de Motor (%)", "Consumo Médio (l/ha)", "Área Operacional (ha)"],
+        "Valor Real": [velocidade_real, eficiencia_real, consumo_real, area_real],
+        "Simulado": [velocidade_sim, eficiencia_sim, consumo_sim, area_op_sim],
+        "Delta": [
+            velocidade_sim-(velocidade_real if velocidade_real else 0),
+            eficiencia_sim-(eficiencia_real if eficiencia_real else 0),
+            consumo_sim-(consumo_real if consumo_real else 0),
+            area_op_sim-(area_real if area_real else 0)
         ]
-        simulados_df = pd.DataFrame(simulados)
-        st.dataframe(simulados_df)
+    })
+    st.dataframe(comparativo)
 
-        potencial_economia = None
-        if "Consumo Médio (l/ha)" in df_filtered:
-            potencial_economia = (df_filtered["Consumo Médio (l/ha)"].mean() - consumo_sim) * area_op_sim
+    # FEEDBACK AUTOMÁTICO
+    st.markdown("### Feedback e Recomendações")
+    def feedback(param, delta, nome, unidade, meta=None):
+        if meta is not None:
+            if param >= meta:
+                st.success(f"{nome}: *{param:.2f} {unidade}* está acima da meta ({meta:.2f}). Ótimo desempenho!")
+            else:
+                st.warning(f"{nome}: *{param:.2f} {unidade}* está abaixo da meta ({meta:.2f}). Considere ajustes.")
+        else:
+            if delta > 0:
+                st.info(f"{nome} aumentou em relação à referência real (+{delta:.2f} {unidade})")
+            elif delta < 0:
+                st.info(f"{nome} reduziu em relação à referência real ({delta:.2f} {unidade})")
+            else:
+                st.info(f"{nome} igual ao da referência real.")
+
+    if velocidade_real is not None:
+        feedback(velocidade_sim, velocidade_sim-velocidade_real, "Velocidade Média", "km/h")
+    if eficiencia_real is not None:
+        feedback(eficiencia_sim, eficiencia_sim-eficiencia_real, "Eficiência de Motor (%)", "%", meta=65)
+    if consumo_real is not None:
+        feedback(consumo_sim, consumo_sim-consumo_real, "Consumo Médio", "l/ha")
+    if area_real is not None:
+        feedback(area_op_sim, area_op_sim-area_real, "Área Operacional", "ha")
+
+    if consumo_real is not None:
+        potencial_economia = (consumo_real-consumo_sim)*area_op_sim
+        if potencial_economia > 0:
             st.success(f"Potencial economia de insumos: {potencial_economia:.2f} litros por operação simulada.")
+        elif potencial_economia < 0:
+            st.warning(f"Simulação indica *aumento* de consumo em {abs(potencial_economia):.2f} litros.")
+
+    st.caption("Valores reais baseados em médias e extremos dos dados filtrados. Ajuste os sliders para comparar e avaliar impacto dos cenários.")
+
 
     ######################## Exportar ########################
     with tab_rel:
@@ -390,3 +477,4 @@ if uploaded_file is not None:
 
 else:
     st.info("Faça o upload de uma planilha Excel para análise.")
+
