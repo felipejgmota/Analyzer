@@ -413,19 +413,20 @@ with tab_sim:
 
     # FEEDBACK AUTOMÁTICO
     st.markdown("### Feedback e Recomendações")
-    def feedback(param, delta, nome, unidade, meta=None):
-        if meta is not None:
-            if param >= meta:
-                st.success(f"{nome}: *{param:.2f} {unidade}* está acima da meta ({meta:.2f}). Ótimo desempenho!")
-            else:
-                st.warning(f"{nome}: *{param:.2f} {unidade}* está abaixo da meta ({meta:.2f}). Considere ajustes.")
+def feedback(param, delta, nome, unidade, meta=None):
+    if meta is not None:
+        if param >= meta:
+            st.success(f"{nome}: *{param:.2f} {unidade}* está acima da meta ({meta:.2f}). Ótimo desempenho!")
         else:
-            if delta > 0:
-                st.info(f"{nome} aumentou em relação à referência real (+{delta:.2f} {unidade})")
-            elif delta < 0:
-                st.info(f"{nome} reduziu em relação à referência real ({delta:.2f} {unidade})")
-            else:
-                st.info(f"{nome} igual ao da referência real.")
+            st.warning(f"{nome}: *{param:.2f} {unidade}* está abaixo da meta ({meta:.2f}). Considere ajustes.")
+    else:
+        if delta > 0:
+            st.info(f"{nome} aumentou em relação à referência real (+{delta:.2f} {unidade})")
+        elif delta < 0:
+            st.info(f"{nome} reduziu em relação à referência real ({delta:.2f} {unidade})")
+        else:
+            st.info(f"{nome} igual ao da referência real.")
+
 
 
     if velocidade_real is not None:
@@ -478,5 +479,3 @@ with tab_sim:
 
 else:
     st.info("Faça o upload de uma planilha Excel para análise.")
-
-
